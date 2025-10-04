@@ -17,11 +17,6 @@ NEEDED_COLS = [
 ]
 
 
-def mode_or_nan(s: pd.Series):
-    s = s.dropna()
-    return s.mode().iloc[0] if not s.mode().empty else np.nan
-
-
 def list_year_csvs(path: str, n_years: int | None):
     files = sorted(glob.glob(os.path.join(path, "*.csv")))
     if n_years is not None:
