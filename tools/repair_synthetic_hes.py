@@ -5,7 +5,7 @@ import time
 import duckdb
 import numpy as np
 import pandas as pd
-
+from tools.ethnicity_map import map_ethnicity_series
 
 CUTOFF = pd.Timestamp("1900-01-01")  # treat pre-1900 dates as dummy -> NaT
 
@@ -71,18 +71,38 @@ def load_df(inp: str, n_years: int | None) -> pd.DataFrame:
         out = read_one(inp)
 
     if out.empty:
-        raise ValueError("Loaded an empty dataframe after column filtering.")
+        raise ValueError(
+            "Loaded an empty dataframe after column filtering.")
     return out
 
 
 def attach_imd(df: pd.DataFrame, imd_parquet: str) -> pd.DataFrame:
     imd = pd.read_parquet(imd_parquet)
-    if "lsoa11_code" in imd.columns and "LSOA11" in df.columns:
+
+    # Normalise IMD column name first
+    if "lsoa11_code" in imd.columns and "LSOA11" not in imd.columns:
         imd = imd.rename(columns={"lsoa11_code": "LSOA11"})
+
+    # Sanity check columns
     if not {"LSOA11", "imd_quintile"}.issubset(imd.columns):
         raise KeyError(
             "IMD parquet must have columns: LSOA11, imd_quintile (or lsoa11_code + imd_quintile).")
-    return df.merge(imd[["LSOA11", "imd_quintile"]].drop_duplicates("LSOA11"), on="LSOA11", how="left")
+
+    # Remove Welsh LSOAs from the HES dataframe (W01… = Wales)
+    before = len(df)
+    df = df[~df["LSOA11"].astype(str).str.startswith("W01")].copy()
+    removed = before - len(df)
+    if removed:
+        print(
+            f"🗺️  Removed {removed:,} Welsh (W01…) rows prior to IMD join.")
+
+    # Join IMD
+    out = df.merge(
+        imd[["LSOA11", "imd_quintile"]].drop_duplicates("LSOA11"),
+        on="LSOA11",
+        how="left"
+    )
+    return out
 
 
 def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,7 +128,7 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
     spell = duckdb.query("""
         WITH base AS (
             SELECT
-                PSEUDO_HESID,
+                PSEUDO_HESID AS patient_id,
                 ADMIDATE AS adm,
                 DISDATE  AS dis,
                 COUNT(DISTINCT EPIKEY) AS n_episodes,
@@ -169,16 +189,35 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
                 FROM sex_counts
             ) t
             WHERE rn = 1
+        ),
+        age_counts AS (
+            SELECT PSEUDO_HESID, ADMIDATE AS adm, DISDATE AS dis, STARTAGE AS v, COUNT(*) AS cnt
+            FROM episodes
+            WHERE STARTAGE IS NOT NULL
+            GROUP BY 1,2,3,4
+        ),
+        age_mode AS (
+            SELECT PSEUDO_HESID, adm, dis, v AS age
+            FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY PSEUDO_HESID, adm, dis
+                    ORDER BY cnt DESC, v
+                ) rn
+                FROM age_counts
+            ) t
+            WHERE rn = 1
         )
         SELECT
             b.*,
             d.primary_diag,
             e.ethnicity,
-            s.sex
+            s.sex,
+            a.age
         FROM base b
-        LEFT JOIN diag_mode d ON b.PSEUDO_HESID=d.PSEUDO_HESID AND b.adm=d.adm AND b.dis=d.dis
-        LEFT JOIN ethn_mode e ON b.PSEUDO_HESID=e.PSEUDO_HESID AND b.adm=e.adm AND b.dis=e.dis
-        LEFT JOIN sex_mode  s ON b.PSEUDO_HESID=s.PSEUDO_HESID AND b.adm=s.adm AND b.dis=s.dis
+        LEFT JOIN diag_mode d ON b.patient_id=d.PSEUDO_HESID AND b.adm=d.adm AND b.dis=d.dis
+        LEFT JOIN ethn_mode e ON b.patient_id=e.PSEUDO_HESID AND b.adm=e.adm AND b.dis=e.dis
+        LEFT JOIN sex_mode  s ON b.patient_id=s.PSEUDO_HESID AND b.adm=s.adm AND b.dis=s.dis
+        LEFT JOIN age_mode  a ON b.patient_id=a.PSEUDO_HESID AND b.adm=a.adm AND b.dis=a.dis
     """).to_df()
 
     # Final LOS & filters back in pandas
@@ -189,10 +228,12 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
 
     # Readable id (cheap, post-agg)
     spell["spell_id"] = (
-        spell["PSEUDO_HESID"].astype("string") + "|" +
+        spell["patient_id"].astype("string") + "|" +
         spell["adm"].astype("string") + "|" +
         spell["dis"].astype("string")
     )
+
+    spell["ethnicity_group"] = map_ethnicity_series(spell["ethnicity"])
 
     print(
         f"DuckDB collapse: episodes {n0:,} → spells {len(spell):,} in {time.perf_counter()-t0:.1f}s")
@@ -202,7 +243,8 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
 def main(inp: str, imd_parquet: str, outp: str, n_years: int | None):
     # 0) load
     df = load_df(inp, n_years=n_years)
-    print(f"✅ Loaded raw dataframe: {df.shape[0]:,} rows, {df.shape[1]} cols")
+    print(
+        f"✅ Loaded raw dataframe: {df.shape[0]:,} rows, {df.shape[1]} cols")
 
     # 1) attach IMD (required)
     df = attach_imd(df, imd_parquet)
