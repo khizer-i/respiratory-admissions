@@ -9,7 +9,7 @@ from tools.ethnicity_map import map_ethnicity_series
 
 CUTOFF = pd.Timestamp("1900-01-01")  # treat pre-1900 dates as dummy -> NaT
 
-NEEDED_COLS = [
+USE_COLS = [
     "PSEUDO_HESID", "EPIKEY",
     "ADMIDATE", "DISDATE", "ADMIMETH", "ADMISORC",
     "DIAG_4_01", "ETHNOS", "SEX", "STARTAGE", "LSOA11",
@@ -28,7 +28,7 @@ def list_year_csvs(path: str, n_years: int | None):
 
 def load_df(inp: str, n_years: int | None) -> pd.DataFrame:
     # Only read columns we actually need
-    usecols = [c for c in NEEDED_COLS]
+    usecols = [c for c in USE_COLS]
     # Dtypes to reduce memory (dates parsed separately)
     dtypes = {
         "EPIKEY": "Int64",
@@ -73,6 +73,10 @@ def load_df(inp: str, n_years: int | None) -> pd.DataFrame:
     if out.empty:
         raise ValueError(
             "Loaded an empty dataframe after column filtering.")
+
+    print(
+        f"✅ Loaded raw dataframe: {out.shape[0]:,} rows, {out.shape[1]} cols")
+
     return out
 
 
@@ -102,10 +106,59 @@ def attach_imd(df: pd.DataFrame, imd_parquet: str) -> pd.DataFrame:
         on="LSOA11",
         how="left"
     )
+
+    imd_missing = out["imd_quintile"].isna().mean() * 100
+    print(f"ℹ️  IMD missing after join: {imd_missing:.1f}%")
+
     return out
 
 
+def apply_domain_filters(df: pd.DataFrame) -> pd.DataFrame:
+    """
+       - keep sex 1 and 2 only
+       - drop infant age codes 7001–7007 (synthetic coding for <1 year)
+    """
+    out = df.copy()
+
+    # Keep only Male/Female (1/2)
+    sex_num = pd.to_numeric(out["SEX"], errors="coerce")
+    keep_sex = sex_num.isin([1, 2])
+    dropped_sex = len(out) - int(keep_sex.sum())
+    out = out[keep_sex]
+
+    # Drop infant codes 7001–7007 in STARTAGE
+    age_num = pd.to_numeric(out["STARTAGE"], errors="coerce")
+    infant_mask = age_num.between(7001, 7007, inclusive="both")
+    dropped_infant = int(infant_mask.sum())
+    out = out[~infant_mask]
+
+    if dropped_sex:
+        print(f"🧹 Removed {dropped_sex:,} rows with non 1/2 sex codes.")
+    if dropped_infant:
+        print(
+            f"🧒 Removed {dropped_infant:,} rows with infant age codes (7001–7007).")
+
+    return out
+
+
+def filter_respiratory(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only episodes with respiratory ICD-10 primary diagnosis (J00–J99) using DIAG_4_01."""
+    mask = df["DIAG_4_01"].astype(
+        "string").str.strip().str.upper().str.startswith("J")
+    kept = int(mask.sum())
+    print(
+        f"🫁  Respiratory filter: keeping {kept:,} episodes with J** primary diagnosis")
+    return df[mask].copy()
+
+
 def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
+    """Episode-level -> spell-level:
+       - fix dates & LOS
+       - true modes for primary_diag, ethnicity, sex, age
+       - add ethnicity_group, quinary age bands, respiratory flags/groups
+       - build stable spell_id
+       - remove null spell ids
+    """
     t0 = time.perf_counter()
     n0 = len(df)
 
@@ -117,14 +170,10 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
     df["los_days"] = (df["DISDATE"] - df["ADMIDATE"]).dt.days + 1
     df.loc[df["los_days"] <= 0, "los_days"] = pd.NA
 
-    # Keep IMD quintile nullable-int
-    if "imd_quintile" in df.columns:
-        df["imd_quintile"] = df["imd_quintile"].astype("Int64")
-
     # Register for SQL
     duckdb.register("episodes", df)
 
-    # Collapse with true mode for DIAG_4_01, ETHNOS, SEX (ties => alphabetical)
+    # Collapse with true mode for DIAG_4_01, ETHNOS, SEX, STARTAGE
     spell = duckdb.query("""
         WITH base AS (
             SELECT
@@ -220,41 +269,84 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
         LEFT JOIN age_mode  a ON b.patient_id=a.PSEUDO_HESID AND b.adm=a.adm AND b.dis=a.dis
     """).to_df()
 
-    # Final LOS & filters back in pandas
+    print(
+        f"☰ DuckDB collapse: episodes {n0:,} → spells {len(spell):,} in {time.perf_counter()-t0:.1f}s")
+
+    # Final LOS & reasonable filter
     spell["los_days"] = (spell["dis"] - spell["adm"]).dt.days + 1
     ok = spell["los_days"].isna() | ((spell["los_days"] >= 1)
                                      & (spell["los_days"] <= 365*2))
     spell = spell[ok].reset_index(drop=True)
 
-    # Readable id (cheap, post-agg)
+    # Readable id
     spell["spell_id"] = (
         spell["patient_id"].astype("string") + "|" +
         spell["adm"].astype("string") + "|" +
         spell["dis"].astype("string")
     )
 
+    # Ethnicity descriptions
     spell["ethnicity_group"] = map_ethnicity_series(spell["ethnicity"])
 
-    print(
-        f"DuckDB collapse: episodes {n0:,} → spells {len(spell):,} in {time.perf_counter()-t0:.1f}s")
+    # Age bands: 0–4, 5–9, …, 85–89, 90+
+    # large upper bound to catch elderly
+    bins = list(range(0, 95, 5)) + [10**6]
+    labels = [f"{i}-{i+4}" for i in range(0, 90, 5)] + ["90+"]
+    spell["age_band_quinary"] = pd.cut(
+        spell["age"],
+        bins=bins,
+        labels=labels,
+        right=False
+    )
+
+    # Respiratory flags / grouping from primary diagnosis
+    def classify_respiratory(icd: str) -> str:
+        if pd.isna(icd):
+            return "Unknown"
+        icd = str(icd).upper()
+        if icd.startswith(("J45", "J46")):
+            return "Asthma"
+        if icd.startswith(("J40", "J41", "J42", "J43", "J44")):
+            return "COPD"
+        if icd.startswith(("J12", "J13", "J14", "J15", "J16", "J17", "J18")):
+            return "Pneumonia"
+        if icd.startswith("J"):
+            return "Other respiratory"
+        return "Non-respiratory"
+
+    spell["is_respiratory"] = spell["primary_diag"].astype(
+        "string").str.upper().str.startswith("J")
+    spell["respiratory_group"] = spell["primary_diag"].apply(
+        classify_respiratory).astype("category")
+
+    # Remove incomplete spells (null spell_id)
+    before = len(spell)
+    spell = spell.dropna(subset=["spell_id"]).reset_index(drop=True)
+    removed = before - len(spell)
+
+    print(f"🧹 Removed {removed:,} spells with missing spell_id ")
+    print(f"✅ Clean dataset ready: {len(spell):,} rows")
+
     return spell
 
 
 def main(inp: str, imd_parquet: str, outp: str, n_years: int | None):
     # 0) load
     df = load_df(inp, n_years=n_years)
-    print(
-        f"✅ Loaded raw dataframe: {df.shape[0]:,} rows, {df.shape[1]} cols")
 
     # 1) attach IMD (required)
     df = attach_imd(df, imd_parquet)
-    imd_missing = df["imd_quintile"].isna().mean() * 100
-    print(f"ℹ️  IMD missing after join: {imd_missing:.1f}%")
 
-    # 2) clean & collapse
+    # 2) apply filters
+    df = apply_domain_filters(df)
+
+    # 3) filter for respiratory conditions
+    df = filter_respiratory(df)
+
+    # 4) clean & collapse
     spell = clean_and_collapse(df)
 
-    # 3) save
+    # 5) save
     os.makedirs(os.path.dirname(outp), exist_ok=True)
     spell.to_parquet(outp, index=False)
     print(f"💾 Wrote: {outp}")
