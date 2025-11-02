@@ -27,8 +27,8 @@ respiratoryAdmissions/
     - Removes invalid dates and infant records (<1 year, 7001–7007)
     - Drops non-binary or unknown sex codes
     - Excludes Welsh LSOAs (IMD coverage is England only)
-    - Joins IMD quintiles
-    - Maps ethnicity codes → broad categories
+    - Joins IMD and creates quintiles
+    - Maps ethnicity codes to broad categories
     - Builds quinary age bands (0–4, 5–9, …, 85–89, 90+)
     - Filters for respiratory ICD-10 codes (J00–J99)
     - Classifies respiratory group (Asthma, COPD, Pneumonia, Other)
@@ -49,7 +49,10 @@ source .venv/bin/activate  # (or .venv\Scripts\activate on Windows)
 pip install -r requirements.txt
 
 # 3. Run the repair script to generate the clean dataset
-python tools/repair_synthetic_hes.py --in data/raw/artificial_hes_apc_202302_v1_full --imd data/processed/imd_2019.parquet --out data/processed/apc_clean.parquet
+python tools/repair_synthetic_hes.py`
+--in data/raw/artificial_hes_apc_202302_v1_full`
+--imd data/processed/imd_clean.parquet`
+--out data/processed/apc_clean.parquet`
 ```
 
 ## Data Sources
