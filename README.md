@@ -48,7 +48,8 @@ Spell-level data is aggregated to one row per patient. Features include number o
 Output:
 `data/processed/patient_level.parquet`
 
-5. Unsupervised Clustering (Exploratory Only)
+**5. Unsupervised Clustering (Exploratory Only)**
+
 K-means was tested to identify potential patient cohorts. Across k=2–8, cluster-quality metrics were consistently weak and yielded no clinically meaningful groups. Clustering is therefore excluded from the final workflow.
 
 **6. Supervised Modelling**
