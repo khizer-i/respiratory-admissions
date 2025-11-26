@@ -26,26 +26,32 @@ respiratoryAdmissions/
 ```
 
 ## Workflow Overview
-1. **Data Ingestion & Cleaning**
+**1. Data Ingestion & Cleaning**
+
 Raw APC episode data is processed into a spell-level dataset using a custom repair script (`tools/repair_synthetic_hes.py`). This includes date correction, episode-to-spell collapsing, IMD joining, ethnicity mapping, respiratory diagnosis classification and LOS validation.
+
 Output:
 `data/processed/apc_clean.parquet`
 
-2. Data Quality Checks
+**2. Data Quality Checks**
+
 The first notebook validates the cleaned dataset: missingness, LOS plausibility, spell construction, demographic coverage, and exclusions. Additional adjustments are documented.
 
-3. Exploratory Analysis
+**3. Exploratory Analysis**
+
 Trends and distributions are explored across age, sex, ethnicity, deprivation and respiratory diagnosis. Inequalities are investigated using descriptive statistics and non-parametric tests. Seasonal patterns, LOS behaviour and emergency admission patterns are visualised.
 
-4. Patient-Level Summaries
+**4. Patient-Level Summaries**
+
 Spell-level data is aggregated to one row per patient. Features include number of spells, mean LOS, emergency proportion and a 30-day readmission flag. This forms the modelling dataset.
+
 Output:
 `data/processed/patient_level.parquet`
 
 5. Unsupervised Clustering (Exploratory Only)
 K-means was tested to identify potential patient cohorts. Across k=2–8, cluster-quality metrics were consistently weak and yielded no clinically meaningful groups. Clustering is therefore excluded from the final workflow.
 
-6. Supervised Modelling
+**6. Supervised Modelling**
 
 
 ## Installation & Setup (Windows)
