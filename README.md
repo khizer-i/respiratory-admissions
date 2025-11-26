@@ -1,39 +1,60 @@
-# 🫁 Respiratory Admissions & Health Inequalities
+# Respiratory Admissions & Health Inequalities
 
-Exploring hospital respiratory admissions, deprivation, and inequality patterns using synthetic HES data.
+This project analyses synthetic Hospital Episode Statistics (HES) data to explore patterns in respiratory admissions, investigate potential inequalities, and build a supervised model to predict 30-day readmission risk. 
 
-## Project Overview
-This project analyses hospital admissions for respiratory conditions (COPD, asthma, pneumonia, and related diseases) using synthetic Hospital Episode Statistics (HES APC) data published by NHS Digital.
+The work follows a full end-to-end data science workflow, including data engineering, data quality assessment, exploratory analysis, patient-level summarisation and predictive modelling.
 
-The goal is to demonstrate a full data analytics and modelling workflow, from raw data cleaning to predictive modelling and visualisation, while examining health inequalities by deprivation, ethnicity, age, and gender.
-
-> ⚠️ **Disclaimer**: All data used are artificial (synthetic) and contain no real patient information. Findings are illustrative and intended purely for learning and portfolio demonstration.
+The dataset is artificial and non-identifiable, designed for demonstration only.
 
 ## Project Structure
 ```bash
 respiratoryAdmissions/
 ├─ data/
-│  ├─ raw/           # artificial HES CSV files, IMD Excel
-│  ├─ processed/     # cleaned Parquet files
-├─ notebooks/        # Jupyter notebooks for analysis
-├─ tools/            # repair scripts, ethnicity map, utilities
+│  ├─ raw/           # artificial HES APC CSV files + IMD Excel
+│  ├─ processed/     # cleaned spell-level data + patient-level data
+├─ notebooks/
+│  ├─ 01_data_quality.ipynb
+│  ├─ 02_exploratory_analysis.ipynb
+│  ├─ 03_patient_summary.ipynb
+│  ├─ 04_modelling.ipynb
+├─ tools/
+│  ├─ ethnicity_map.py
+│  ├─ process_imd.py
+│  ├─ repair_synthetic_hes.py
 ├─ README.md
 ├─ requirements.txt
 ```
 
-## Data Processing Pipeline
-1. Data ingestion & repair (`tools/repair_synthetic_hes.py`)
-    - Combines yearly HES CSVs
-    - Cleans invalid dates, infant records (7001–7007), and sex codes
-    - Removes Welsh LSOAs (IMD coverage is England only)
-    - Joins IMD and creates quintiles and maps ethnicity codes
-    - Builds quinary age bands (0–4, 5–9, …, 85–89, 90+)
-    - Filters for respiratory diagnoses (J00–J99)
-    - Makes each row its own spell
+## Workflow Overview
+1. Data Ingestion & Cleaning
 
-2. **Output:**
+Raw APC episode data is processed into a spell-level dataset using a custom repair script (`tools/repair_synthetic_hes.py`). This includes date correction, episode-to-spell collapsing, IMD joining, ethnicity mapping, respiratory diagnosis classification and LOS validation.
 
-`data/processed/apc_clean.parquet` – spell-level, analysis-ready dataset
+Output:
+`data/processed/apc_clean.parquet`
+
+2. Data Quality Checks
+
+The first notebook validates the cleaned dataset: missingness, LOS plausibility, spell construction, demographic coverage, and exclusions. Additional adjustments are documented.
+
+3. Exploratory Analysis
+
+Trends and distributions are explored across age, sex, ethnicity, deprivation and respiratory diagnosis. Inequalities are investigated using descriptive statistics and non-parametric tests. Seasonal patterns, LOS behaviour and emergency admission patterns are visualised.
+
+4. Patient-Level Summaries
+
+Spell-level data is aggregated to one row per patient. Features include number of spells, mean LOS, emergency proportion and a 30-day readmission flag. This forms the modelling dataset.
+
+Output:
+`data/processed/patient_level.parquet`
+
+5. Unsupervised Clustering (Exploratory Only)
+
+K-means was tested to identify potential patient cohorts. Across k=2–8, cluster-quality metrics were consistently weak and yielded no clinically meaningful groups. Clustering is therefore excluded from the final workflow.
+
+6. Supervised Modelling
+
+Logistic regression, random forest and gradient boosting models are used to predict 30-day readmission. Model performance is assessed via AUROC, precision-recall curves (important given the 2% prevalence), calibration and SHAP explanations.
 
 ## Installation & Setup (Windows)
 ```powershell
@@ -58,10 +79,3 @@ python tools/repair_synthetic_hes.py`
 https://digital.nhs.uk
 - Indices of Multiple Deprivation (2019)
 https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019
-
-## About
-Developed as a portfolio project to showcase:
-- Robust data engineering and cleaning
-- Exploratory analysis with an inequalities focus
-- Modelling and interpretation using real-world health structures
-- Clear, reproducible communication
