@@ -159,18 +159,14 @@ def plot_feature_importance(model, feature_names: list):
         .sort_values("importance", ascending=True)
     )
 
-    # SMALL + LOW DPI + SMALL FONT
-    fig, ax = plt.subplots(figsize=(3, 1.8), dpi=70)
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.barh(fi["feature"], fi["importance"], color="#1f77b4")
 
-    ax.barh(
-        fi["feature"],
-        fi["importance"],
-        height=0.35
-    )
+    ax.set_xlabel("Importance", fontsize=10)
+    ax.set_title("Feature importance", fontsize=11, pad=6)
 
-    ax.set_xlabel("Importance", fontsize=8)
-    ax.set_title("Feature importance", fontsize=9)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.tick_params(axis="y", labelsize=9)
+    ax.tick_params(axis="x", labelsize=9)
 
     plt.tight_layout()
     return fig
@@ -319,7 +315,7 @@ using a patient-level dataset derived from synthetic HES APC data and a trained 
     fig_fi = plot_feature_importance(xgb_model, feature_cols)
 
     if fig_fi is not None:
-        st.pyplot(fig_fi)
+        st.pyplot(fig_fi, use_container_width=False)
     else:
         st.info("Feature importances not available on this model object.")
 
