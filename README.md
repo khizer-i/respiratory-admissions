@@ -1,61 +1,74 @@
-# Respiratory Admissions & Health Inequalities
+# Respiratory Admissions: Predicting 30-Day Readmissions from Synthetic NHS HES Data
 
-This project analyses synthetic Hospital Episode Statistics (HES) data to explore patterns in respiratory admissions, investigate potential inequalities, and build a supervised model to predict 30-day readmission risk. 
+This project develops an end-to-end machine-learning pipeline to predict 30-day emergency readmissions for patients admitted with respiratory conditions.
 
-The work follows a full end-to-end data science workflow, including data engineering, data quality assessment, exploratory analysis, patient-level summarisation and predictive modelling.
+## Project Objectives
+- Convert spell-level administrative data into clean patient-level records.
+- Explore demographic and clinical patterns in respiratory admissions.
+- Train and compare models to predict 30-day readmission risk.
+- Optimise thresholds, assess errors, and evaluate fairness.
+- Provide an interactive dashboard to explore predictions and high-risk cohorts.
 
-The dataset is artificial and non-identifiable, designed for demonstration only.
+## Key Findings
+- Several simple engineered features (notably number of prior spells, mean LOS, and emergency proportion) carry strong predictive information.
+- Logistic regression performs strongly, however XGBoost delivers the best balance of PR-AUC, log-loss, and interpretability when calibrated and threshold-optimised.
+- SHAP analysis confirms n_spells as the dominant driver of risk, with smaller contributions from pct_emerg, mean_los, and clinical grouping.
+- Performance is stable across train/CV/test, and error analysis indicates plausible failure modes rather than systematic bias.
+- Exploratory K-means clustering did not reveal meaningful patient subgroups and is excluded from the final workflow.
 
 ## Project Structure
 ```bash
 respiratoryAdmissions/
 ├─ data/
-│  ├─ raw/           # artificial HES APC CSV files + IMD Excel
-│  ├─ processed/     # cleaned spell-level data + patient-level data
+│  ├─ raw/           # synthetic HES APC CSV files + IMD lookup
+│  ├─ processed/     # cleaned spell-level and patient-level data, and IMD
+├─ models/
+│  ├─ readmission_xgb_pipeline.pkl   # final model pipeline (preprocessing + XGB)
 ├─ notebooks/
 │  ├─ 01_data_quality.ipynb
 │  ├─ 02_exploratory_analysis.ipynb
 │  ├─ 03_patient_summary.ipynb
-│  ├─ 04_modelling.ipynb
+│  ├─ 04_modelling.ipynb             # full ML workflow
 ├─ tools/
 │  ├─ ethnicity_map.py
 │  ├─ process_imd.py
 │  ├─ repair_synthetic_hes.py
+├─ app.py                            # Streamlit dashboard
 ├─ README.md
 ├─ requirements.txt
 ```
 
 ## Workflow Overview
-**1. Data Ingestion & Cleaning**
 
-Raw APC episode data is processed into a spell-level dataset using a custom repair script (`tools/repair_synthetic_hes.py`). This includes date correction, episode-to-spell collapsing, IMD joining, ethnicity mapping, respiratory diagnosis classification and LOS validation.
+**1. Data Repair & Cleaning**
+- Corrects date inconsistencies and length-of-stay anomalies
+- Standardises IMD and ethnicity fields
+- Generates reproducible spell-level and patient-level datasets
 
-Output:
-`data/processed/apc_clean.parquet`
+**2. Exploratory Analysis**
+- Distributions of age, LOS, emergency use, deprivation
+- Condition-specific patterns
+- Light inferential checks to detect meaningful group differences
 
-**2. Data Quality Checks**
+**3. Patient-Level Feature Engineering**
+- Aggregates spells to patients
+- Final modelling features include: age, sex, ethnicity_group, respiratory_group_mode, n_spells, mean_los, pct_emerg, imd_quintile
+- Labels readmission within 30 days
 
-The first notebook validates the cleaned dataset: missingness, LOS plausibility, spell construction, demographic coverage, and exclusions. Additional adjustments are documented.
+**4. Modelling**
+- 60/20/20 train–validation–test split with stratification
+- Baseline: Logistic Regression
+- Final model: XGBoost with early stopping + hyperparameter tuning
+- Precision–recall threshold optimisation
+- Error inspection (top false positives/negatives)
+- SHAP global + local interpretability
 
-**3. Exploratory Analysis**
+**_Exploratory Only: Clustering_**
 
-Trends and distributions are explored across age, sex, ethnicity, deprivation and respiratory diagnosis. Inequalities are investigated using descriptive statistics and non-parametric tests. Seasonal patterns, LOS behaviour and emergency admission patterns are visualised.
-
-**4. Patient-Level Summaries**
-
-Spell-level data is aggregated to one row per patient. Features include number of spells, mean LOS, emergency proportion and a 30-day readmission flag. This forms the modelling dataset.
-
-Output:
-`data/processed/patient_level.parquet`
-
-**5. Unsupervised Clustering (Exploratory Only)**
-
-K-means was tested to identify potential patient cohorts. Across k=2–8, cluster-quality metrics were consistently weak and yielded no clinically meaningful groups. Clustering is therefore excluded from the final workflow.
-
-**6. Supervised Modelling**
+_K-means was tested (k=2–8). Scores were consistently weak and produced no meaningful cohorts, so clustering is not used in the final approach._
 
 
-## Installation & Setup (Windows)
+## Reproducibility (Windows)
 ```powershell
 # 1. Clone the repository
 git clone https://github.com/<your-username>/respiratoryAdmissions.git
@@ -66,11 +79,18 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 3. Run the repair script to generate the clean dataset
-python tools/repair_synthetic_hes.py`
---in data/raw/artificial_hes_apc_202302_v1_full`
---imd data/processed/imd_clean.parquet`
---out data/processed/apc_clean.parquet`
+# 3. Generate clean spell-level data
+python -m tools.repair_synthetic_hes `
+    --in data/raw/<apc_raw_folder> `
+    --imd data/processed/imd_clean.parquet `
+    --out data/processed/apc_clean.parquet `
+    --n_years 3
+
+# 4. Run notebooks 01–03 to generate patient_level.parquet
+# 5. Run 04_modelling.ipynb to train and save the model
+
+# 6. Launch the dashboard
+streamlit run app.py
 ```
 
 ## Data Sources
