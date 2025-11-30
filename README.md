@@ -69,6 +69,14 @@ respiratoryAdmissions/
 
 _K-means was tested (k=2–8). Scores were consistently weak and produced no meaningful cohorts, so clustering is not used in the final approach._
 
+**5. Dashboard**
+The Streamlit app is available here:
+https://khizer-i-respiratory-admissions-app-dqmkum.streamlit.app/
+
+app.py provides a one-page Streamlit dashboard featuring:
+- Model performance snapshot: PR curve, F1-vs-threshold, feature importance
+- Risk landscape: mean predicted risk by respiratory group & IMD quintile
+- High-risk cohort explorer: interactive threshold slider + patient table (clean formatting, percentages, rounding)
 
 ## Reproducibility (Windows)
 ```powershell
