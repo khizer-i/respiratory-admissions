@@ -2,6 +2,8 @@
 
 This project develops an end-to-end machine-learning pipeline to predict 30-day emergency readmissions for patients admitted with respiratory conditions.
 
+Synthetic HES APC-style data is processed into patient-level records, analysed, modelled, and finally deployed in an interactive dashboard.
+
 ## Project Objectives
 - Convert spell-level administrative data into clean patient-level records.
 - Explore demographic and clinical patterns in respiratory admissions.
@@ -95,6 +97,6 @@ streamlit run app.py
 
 ## Data Sources
 - Artificial HES APC Data (v2023-02) — NHS Digital Open Data
-https://digital.nhs.uk
+https://digital.nhs.uk/services/artificial-data
 - Indices of Multiple Deprivation (2019)
 https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019
