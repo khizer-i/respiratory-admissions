@@ -160,13 +160,14 @@ def plot_feature_importance(model, feature_names: list):
     )
 
     fig, ax = plt.subplots(figsize=(4, 3))
+
     ax.barh(fi["feature"], fi["importance"], color="#1f77b4")
 
-    ax.set_xlabel("Importance", fontsize=10)
-    ax.set_title("Feature importance", fontsize=11, pad=6)
+    ax.set_xlabel("Importance", fontsize=8)
+    ax.set_title("Feature importance", fontsize=9, pad=4)
 
-    ax.tick_params(axis="y", labelsize=9)
-    ax.tick_params(axis="x", labelsize=9)
+    ax.tick_params(axis="y", labelsize=7)
+    ax.tick_params(axis="x", labelsize=7)
 
     plt.tight_layout()
     return fig

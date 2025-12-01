@@ -70,6 +70,7 @@ respiratoryAdmissions/
 _K-means was tested (k=2–8). Scores were consistently weak and produced no meaningful cohorts, so clustering is not used in the final approach._
 
 **5. Dashboard**
+
 The Streamlit app is available here:
 https://khizer-i-respiratory-admissions-app-dqmkum.streamlit.app/
 
