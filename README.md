@@ -14,7 +14,7 @@ Synthetic HES APC-style data is processed into patient-level records, analysed, 
 ## Key Findings
 - Several simple engineered features (notably number of prior spells, mean LOS, and emergency proportion) carry strong predictive information.
 - Logistic regression performs strongly, however XGBoost delivers the best balance of PR-AUC, log-loss, and interpretability when calibrated and threshold-optimised.
-- SHAP analysis confirms n_spells as the dominant driver of risk, with smaller contributions from pct_emerg, mean_los, and clinical grouping.
+- SHAP analysis confirms `n_spells` as the dominant driver of risk, with smaller contributions from `pct_emerg`, `mean_los`, and clinical grouping.
 - Performance is stable across train/CV/test, and error analysis indicates plausible failure modes rather than systematic bias.
 - Exploratory K-means clustering did not reveal meaningful patient subgroups and is excluded from the final workflow.
 
@@ -34,7 +34,7 @@ respiratoryAdmissions/
 ├─ tools/
 │  ├─ ethnicity_map.py
 │  ├─ process_imd.py
-│  ├─ repair_synthetic_hes.py
+│  ├─ repair_synthetic_hes.py        # full synthetic HES repair script
 ├─ app.py                            # Streamlit dashboard
 ├─ README.md
 ├─ requirements.txt
@@ -54,7 +54,7 @@ respiratoryAdmissions/
 
 **3. Patient-Level Feature Engineering**
 - Aggregates spells to patients
-- Final modelling features include: age, sex, ethnicity_group, respiratory_group_mode, n_spells, mean_los, pct_emerg, imd_quintile
+- Final modelling features include: `age`, `sex`, `ethnicity_group`, `respiratory_group_mode`, `n_spells`, `mean_los`, `pct_emerg`, `imd_quintile`
 - Labels readmission within 30 days
 
 **4. Modelling**
@@ -74,10 +74,10 @@ _K-means was tested (k=2–8). Scores were consistently weak and produced no mea
 The Streamlit app is available here:
 https://khizer-i-respiratory-admissions-app-dqmkum.streamlit.app/
 
-app.py provides a one-page Streamlit dashboard featuring:
+`app.py` provides a one-page Streamlit dashboard featuring:
 - Model performance snapshot: PR curve, F1-vs-threshold, feature importance
 - Risk landscape: mean predicted risk by respiratory group & IMD quintile
-- High-risk cohort explorer: interactive threshold slider + patient table (clean formatting, percentages, rounding)
+- High-risk cohort explorer: interactive threshold slider + patient table
 
 ## Reproducibility (Windows)
 ```powershell
@@ -105,7 +105,7 @@ streamlit run app.py
 ```
 
 ## Data Sources
-- Artificial HES APC Data (v2023-02) — NHS Digital Open Data
+- Artificial HES Admitted Patient Care Full
 https://digital.nhs.uk/services/artificial-data
 - Indices of Multiple Deprivation (2019)
 https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019
