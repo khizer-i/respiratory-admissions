@@ -60,14 +60,14 @@ def load_df(inp: str, n_years: int | None) -> pd.DataFrame:
 
     if os.path.isdir(inp):
         files = list_year_csvs(inp, n_years)
-        print(f"📂 Reading {len(files)} file(s):")
+        print(f"Reading {len(files)} file(s):")
         dfs = []
         for f in files:
             print("   -", os.path.basename(f))
             dfs.append(read_one(f))
         out = pd.concat(dfs, ignore_index=True)
     else:
-        print(f"📄 Reading file: {inp}")
+        print(f"Reading file: {inp}")
         out = read_one(inp)
 
     if out.empty:
@@ -75,7 +75,7 @@ def load_df(inp: str, n_years: int | None) -> pd.DataFrame:
             "Loaded an empty dataframe after column filtering.")
 
     print(
-        f"✅ Loaded raw dataframe: {out.shape[0]:,} rows, {out.shape[1]} cols")
+        f"Loaded raw dataframe: {out.shape[0]:,} rows, {out.shape[1]} cols")
 
     return out
 
@@ -98,7 +98,7 @@ def attach_imd(df: pd.DataFrame, imd_parquet: str) -> pd.DataFrame:
     removed = before - len(df)
     if removed:
         print(
-            f"🗺️  Removed {removed:,} Welsh (W01…) rows prior to IMD join.")
+            f"Removed {removed:,} Welsh (W01…) rows prior to IMD join.")
 
     # Join IMD
     out = df.merge(
@@ -108,7 +108,7 @@ def attach_imd(df: pd.DataFrame, imd_parquet: str) -> pd.DataFrame:
     )
 
     imd_missing = out["imd_quintile"].isna().mean() * 100
-    print(f"ℹ️  IMD missing after join: {imd_missing:.1f}%")
+    print(f"IMD missing after join: {imd_missing:.1f}%")
 
     return out
 
@@ -133,10 +133,10 @@ def apply_domain_filters(df: pd.DataFrame) -> pd.DataFrame:
     out = out[~infant_mask]
 
     if dropped_sex:
-        print(f"🧹 Removed {dropped_sex:,} rows with non 1/2 sex codes.")
+        print(f"Removed {dropped_sex:,} rows with non 1/2 sex codes.")
     if dropped_infant:
         print(
-            f"🧒 Removed {dropped_infant:,} rows with infant age codes (7001–7007).")
+            f"Removed {dropped_infant:,} rows with infant age codes (7001–7007).")
 
     return out
 
@@ -147,7 +147,7 @@ def filter_respiratory(df: pd.DataFrame) -> pd.DataFrame:
         "string").str.strip().str.upper().str.startswith("J")
     kept = int(mask.sum())
     print(
-        f"🫁  Respiratory filter: keeping {kept:,} episodes with J** primary diagnosis")
+        f"Respiratory filter: keeping {kept:,} episodes with J** primary diagnosis")
     return df[mask].copy()
 
 
@@ -270,7 +270,7 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
     """).to_df()
 
     print(
-        f"☰ DuckDB collapse: episodes {n0:,} → spells {len(spell):,} in {time.perf_counter()-t0:.1f}s")
+        f"DuckDB collapse: episodes {n0:,} → spells {len(spell):,} in {time.perf_counter()-t0:.1f}s")
 
     # Final LOS & reasonable filter
     spell["los_days"] = (spell["dis"] - spell["adm"]).dt.days + 1
@@ -327,8 +327,8 @@ def clean_and_collapse(df: pd.DataFrame) -> pd.DataFrame:
     spell = spell.dropna(subset=["spell_id"]).reset_index(drop=True)
     removed = before - len(spell)
 
-    print(f"🧹 Removed {removed:,} spells with missing spell_id ")
-    print(f"✅ Clean dataset ready: {len(spell):,} rows")
+    print(f"Removed {removed:,} spells with missing spell_id ")
+    print(f"Clean dataset ready: {len(spell):,} rows")
 
     return spell
 
@@ -352,7 +352,7 @@ def main(inp: str, imd_parquet: str, outp: str, n_years: int | None):
     # 5) save
     os.makedirs(os.path.dirname(outp), exist_ok=True)
     spell.to_parquet(outp, index=False)
-    print(f"💾 Wrote: {outp}")
+    print(f"Wrote: {outp}")
 
 
 if __name__ == "__main__":
