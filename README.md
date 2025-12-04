@@ -82,7 +82,7 @@ https://khizer-i-respiratory-admissions-app-dqmkum.streamlit.app/
 ## Reproducibility (Windows)
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/<your-username>/respiratoryAdmissions.git
+git clone https://github.com/khizer-i/respiratoryAdmissions.git
 cd respiratoryAdmissions
 
 # 2. Create virtual environment and install dependencies
